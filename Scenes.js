@@ -32,6 +32,65 @@ class SceneGen {
 
     return reg
   }
+
+  joinToRoom() {
+    const joinToRoom = new Scene("joinToRoom")
+
+    joinToRoom.enter(ctx => {
+      sendMsg(ctx, `Введите код комнаты, или введите /exit, чтобы вернутся.`)
+    })
+
+    joinToRoom.on("message", async ctx => {
+      const userId = ctx.from.id
+      const msg = ctx.message.text
+      const candidate = await getCandidate({ userId })
+
+      if (msg == "/exit") {
+        ctx.scene.leave()
+      } else {
+        const code = msg.toUpperCase()
+        const room = await getRoom(code)
+
+        if (room) {
+          const members = await users.find({ inRoom: code }).toArray()
+
+          if (members.length < 10) {
+            mainBot.telegram.sendMessage(room.author.userId,
+              `Новый участник: ${candidate.username}. ${members.length + 1}/10`)
+
+            await users.updateOne({ _id: candidate._id }, {
+              $set: {
+                inRoom: code,
+                roomRole: "member"
+              }
+            })
+
+            sendMsg(ctx, `
+Вы успешно подключились к комнате <b>${code}</b>!
+Ваша роль: <b>Участник</b>
+Другие участники: <b>${buildMembersList(members).join(", ")}</b>
+            `, ["Покинуть комнату"])
+          } else {
+            sendMsg(ctx, `Комната переполнена.`)
+          }
+        } else {
+          sendMsg(ctx, `Неверный код комнаты.`)
+        }
+      }
+    })
+
+    return joinToRoom
+  }
+}
+
+function buildMembersList(members) {
+  const res = []
+  members.forEach(member => res.push(member.username))
+  return res
+}
+
+async function getRoom(id) {
+  return await rooms.findOne({ roomCode: id })
 }
 
 async function getCandidate(data) {

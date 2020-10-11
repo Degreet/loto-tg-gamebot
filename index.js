@@ -17,8 +17,7 @@ const bot = new Telegraf(TOKEN)
 const toMenuMarkup = ["Вернутся в меню"]
 
 const curScenes = new SceneGen()
-const regScene = curScenes.registration()
-const stage = new Stage([regScene])
+const stage = new Stage([curScenes.registration(), curScenes.joinToRoom()])
 bot.use(session())
 bot.use(stage.middleware())
 
@@ -119,8 +118,11 @@ bot.on("message", async ctx => {
       } else {
         sendMsg(ctx, `Вы не находитесь в комнате.`)
       }
+    } else if (msg == "вступить в комнату") {
+      ctx.scene.enter("joinToRoom")
     } else {
-      sendMsg(ctx, 'Неизвестная команда', toMenuMarkup)
+      if (!candidate.inRoom) sendMsg(ctx, 'Неизвестная команда', toMenuMarkup)
+      else sendMsg(ctx, 'Неизвестная команда')
     }
   } else {
     sendMsg(ctx, `Ваш аккаунт не найден. Чтобы создать новый аккаунт, введите /start.`)
@@ -182,5 +184,8 @@ client.connect(err => {
   global.users = client.db("loto-tg-bot").collection("users")
   global.rooms = client.db("loto-tg-bot").collection("rooms")
 
+  global.mainBot = bot
+
+  admin.launch()
   bot.launch()
 })
