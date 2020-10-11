@@ -42,39 +42,54 @@ class SceneGen {
 
     joinToRoom.on("message", async ctx => {
       const userId = ctx.from.id
-      const msg = ctx.message.text
+      const msg = ctx.message.text.toLowerCase()
       const candidate = await getCandidate({ userId })
 
-      if (msg == "/exit") {
+      if (msg == "/exit" || msg == "покинуть комнату") {
+        const room = await getRoom(candidate.inRoom)
+        const members = await users.find({ inRoom: candidate.inRoom }).toArray()
+
+        await users.updateOne({ userId }, {
+          $set: {
+            inRoom: false,
+            roomRole: null
+          }
+        })
+
+        mainBot.telegram.sendMessage(room.author.userId,
+          `Игрок "${candidate.username}" покинул комнату. ${members.length - 1}/10`)
+        sendMsg(ctx, `Вы успешно покинули комнату.`, ["Вернутся в меню"])
         ctx.scene.leave()
       } else {
-        const code = msg.toUpperCase()
-        const room = await getRoom(code)
+        if (!candidate.inRoom) {
+          const code = msg.toUpperCase()
+          const room = await getRoom(code)
 
-        if (room) {
-          const members = await users.find({ inRoom: code }).toArray()
+          if (room) {
+            const members = await users.find({ inRoom: code }).toArray()
 
-          if (members.length < 10) {
-            mainBot.telegram.sendMessage(room.author.userId,
-              `Новый участник: ${candidate.username}. ${members.length + 1}/10`)
+            if (members.length < 10) {
+              mainBot.telegram.sendMessage(room.author.userId,
+                `Новый участник: ${candidate.username}. ${members.length + 1}/10`)
 
-            await users.updateOne({ _id: candidate._id }, {
-              $set: {
-                inRoom: code,
-                roomRole: "member"
-              }
-            })
+              await users.updateOne({ _id: candidate._id }, {
+                $set: {
+                  inRoom: code,
+                  roomRole: "member"
+                }
+              })
 
-            sendMsg(ctx, `
+              sendMsg(ctx, `
 Вы успешно подключились к комнате <b>${code}</b>!
 Ваша роль: <b>Участник</b>
 Другие участники: <b>${buildMembersList(members).join(", ")}</b>
             `, ["Покинуть комнату"])
+            } else {
+              sendMsg(ctx, `Комната переполнена.`)
+            }
           } else {
-            sendMsg(ctx, `Комната переполнена.`)
+            sendMsg(ctx, `Неверный код комнаты.`)
           }
-        } else {
-          sendMsg(ctx, `Неверный код комнаты.`)
         }
       }
     })
